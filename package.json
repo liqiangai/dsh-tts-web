@@ -1,0 +1,48 @@
+{
+  "name": "dsh-tts-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Voice reading for DSH Web: read assistant replies aloud through Xiaomi MiMo TTS or MiniMax Speech, with a sidebar entry for voices and playback.",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib/*.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "tts",
+    "text-to-speech",
+    "minimax",
+    "xiaomi",
+    "mimo",
+    "voice"
+  ]
+}

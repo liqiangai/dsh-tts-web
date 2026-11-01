@@ -1,0 +1,15 @@
+# Dependencies (only if someone runs them locally)
+node_modules/
+pnpm-lock.yaml
+
+# Local plugin runtime state
+*.log
+settings.json
+.env
+.env.*
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

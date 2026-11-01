@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Voice Reading",
+    "description": "Reads assistant replies aloud through Xiaomi MiMo TTS or MiniMax Speech, with a sidebar panel for providers, voices and playback history."
+  }
+}

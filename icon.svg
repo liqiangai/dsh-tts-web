@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Voice reading">
+  <defs>
+    <linearGradient id="ttsPlate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6df6"/>
+      <stop offset="1" stop-color="#7b3bf0"/>
+    </linearGradient>
+    <linearGradient id="ttsWave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#d7e3ff" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#ttsPlate)"/>
+  <path d="M18 25.5h6.2L33 18.6c.7-.6 1.8-.1 1.8.9v25c0 1-1.1 1.5-1.8.9l-8.8-6.9H18a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" fill="url(#ttsWave)"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="3" opacity="0.95">
+    <path d="M41 24.4a10 10 0 0 1 0 15.2"/>
+    <path d="M46.6 19.4a17.6 17.6 0 0 1 0 25.2" opacity="0.62"/>
+  </g>
+</svg>

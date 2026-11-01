@@ -1,0 +1,8 @@
+# Voice reading (TTS) for DSH Web.
+# One row activates both halves: the Host synthesizer (same-origin /plugins/dsh-tts-web/*)
+# and the package's dsh.client Web half (sidebar entry + read-aloud actions).
+# User settings live in the plugin's own store, edited from its sidebar panel, so this
+# row needs no config keys.
+- insert:
+    - id: dsh-tts-web
+      name: 'dsh-tts-web'
