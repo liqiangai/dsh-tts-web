@@ -1,6 +1,6 @@
 {
   "name": "dsh-tts-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Voice reading for DSH Web: read assistant replies aloud through Xiaomi MiMo TTS or MiniMax Speech, with a sidebar entry for voices and playback.",

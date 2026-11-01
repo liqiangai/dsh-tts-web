@@ -28,6 +28,7 @@ window.__ModuleLoader__.load({
       'action.play': '朗读此回复',
       'action.stop': '停止朗读',
       'action.loading': '正在合成语音…',
+      'action.autoplayBlocked': '浏览器拦截了自动播放，点一下喇叭即可',
       'panel.title': '语音朗读',
       'panel.subtitle': '用 MiniMax Speech 或小米 MiMo TTS 朗读助手回复。',
       'panel.loading': '正在读取配置…',
@@ -42,7 +43,7 @@ window.__ModuleLoader__.load({
       'settings.enabled': '启用语音朗读',
       'settings.enabledHint': '关闭后不再朗读回复，消息工具栏按钮也会隐藏。',
       'settings.autoRead': '自动朗读新回复',
-      'settings.autoReadHint': '助手完成一条回复后自动朗读。',
+      'settings.autoReadHint': '助手完成一条回复后自动朗读（需停留在对话页）。浏览器拦截自动播放时，点一下消息上的喇叭即可。',
       'settings.apiKey': 'API Key',
       'settings.apiKeyPlaceholder': '未配置，粘贴 API Key',
       'settings.apiKeyConfigured': '已通过 {name} 配置',
@@ -93,6 +94,7 @@ window.__ModuleLoader__.load({
       'error.invalid-request': '请求参数不合法',
       'error.network': '网络或服务连接失败',
       'error.play-failed': '浏览器无法播放这段音频',
+      'error.autoplay-blocked': '浏览器拦截了自动播放，点一下喇叭即可',
       'error.generic': '朗读失败',
       'common.unknown': '未知',
     }
@@ -103,6 +105,7 @@ window.__ModuleLoader__.load({
       'action.play': 'Read this reply aloud',
       'action.stop': 'Stop reading',
       'action.loading': 'Synthesizing speech…',
+      'action.autoplayBlocked': 'The browser blocked autoplay — tap the speaker',
       'panel.title': 'Voice reading',
       'panel.subtitle': 'Read assistant replies aloud with MiniMax Speech or Xiaomi MiMo TTS.',
       'panel.loading': 'Loading settings…',
@@ -117,7 +120,7 @@ window.__ModuleLoader__.load({
       'settings.enabled': 'Enable voice reading',
       'settings.enabledHint': 'When off, replies are not read and the message action hides.',
       'settings.autoRead': 'Read new replies automatically',
-      'settings.autoReadHint': 'Speak each reply as soon as the assistant finishes it.',
+      'settings.autoReadHint': 'Speak each reply as soon as it finishes (keep the conversation open). If the browser blocks autoplay, tap the speaker on the message.',
       'settings.apiKey': 'API key',
       'settings.apiKeyPlaceholder': 'Not configured — paste an API key',
       'settings.apiKeyConfigured': 'Configured through {name}',
@@ -168,6 +171,7 @@ window.__ModuleLoader__.load({
       'error.invalid-request': 'The request was invalid',
       'error.network': 'Network or service connection failed',
       'error.play-failed': 'The browser could not play this audio',
+      'error.autoplay-blocked': 'The browser blocked autoplay — tap the speaker',
       'error.generic': 'Reading failed',
       'common.unknown': 'unknown',
     }
@@ -219,6 +223,7 @@ window.__ModuleLoader__.load({
       'invalid-request': 'error.invalid-request',
       network: 'error.network',
       'play-failed': 'error.play-failed',
+      'autoplay-blocked': 'error.autoplay-blocked',
     }
 
     function errorText(code) {
@@ -539,6 +544,45 @@ window.__ModuleLoader__.load({
 
     const selectLatestAssistantText = (chat) => latestAssistantText(chat)
 
+    /** Message id of the newest assistant row: only that reply may auto-read. */
+    function latestAssistantMessageId(chat) {
+      try {
+        const list = chatNodeList(chat)
+        for (let index = list.length - 1; index >= 0; index -= 1) {
+          const node = list[index]
+          if (!node || typeof node !== 'object' || node.kind !== 'assistant') continue
+          if (typeof node.messageId === 'string' && node.messageId.length > 0) return node.messageId
+        }
+      } catch (error) {
+        return ''
+      }
+      return ''
+    }
+
+    /**
+     * Message ids that automatic reading already handled. This is client memory only:
+     * a page reload may replay the newest reply once, which beats silently never speaking.
+     * It also keeps a re-render from starting the same reply twice.
+     */
+    const autoReadLog = (() => {
+      const seen = new Set()
+      const order = []
+      return {
+        has(id) {
+          return typeof id === 'string' && seen.has(id)
+        },
+        mark(id) {
+          if (typeof id !== 'string' || id.length === 0 || seen.has(id)) return
+          seen.add(id)
+          order.push(id)
+          if (order.length > 200) {
+            const oldest = order.shift()
+            seen.delete(oldest)
+          }
+        },
+      }
+    })()
+
     /**
      * Last assistant text seen by the transcript actions. The main panel cannot
      * always bind the Chat snapshot, and the Conversation unmounts while the
@@ -667,6 +711,17 @@ window.__ModuleLoader__.load({
       return Boolean(config && typeof config === 'object' && config.enabled === true)
     }
 
+    /** Whether the session is still producing the reply, so auto-read waits for the end. */
+    function sessionRunning(session) {
+      try {
+        if (!session || typeof session !== 'object') return false
+        if (session.running === true) return true
+        return session.status === 'running' || session.status === 'busy'
+      } catch (error) {
+        return false
+      }
+    }
+
     /* ------------------------------------------------------------------ */
     /* Player                                                              */
     /* ------------------------------------------------------------------ */
@@ -675,6 +730,17 @@ window.__ModuleLoader__.load({
     const LOADING = 'loading'
     const PLAYING = 'playing'
     const ERROR = 'error'
+
+    /** Browsers reject audible playback without a user gesture (NotAllowedError). */
+    function isAutoplayBlocked(error) {
+      try {
+        if (!error) return false
+        if (error.name === 'NotAllowedError' || error.name === 'SecurityError') return true
+        return /not allowed|user gesture|interact/i.test(String(error.message ?? ''))
+      } catch (issue) {
+        return false
+      }
+    }
 
     const player = (() => {
       const store = createStore({
@@ -824,12 +890,12 @@ window.__ModuleLoader__.load({
           try {
             const started_ = element.play()
             if (started_ && typeof started_.then === 'function') {
-              started_.then(started, () => settle(reject, failure('play-failed')))
+              started_.then(started, (error) => settle(reject, failure(isAutoplayBlocked(error) ? 'autoplay-blocked' : 'play-failed')))
             } else {
               started()
             }
           } catch (error) {
-            settle(reject, failure('play-failed'))
+            settle(reject, failure(isAutoplayBlocked(error) ? 'autoplay-blocked' : 'play-failed'))
           }
         })
       }
@@ -1792,9 +1858,16 @@ window.__ModuleLoader__.load({
       const playerState = usePlayerSnapshot()
       const selector = useMemo(() => (chat) => messageTextFromChat(chat, messageId), [messageId])
       const timeSelector = useMemo(() => (chat) => assistantNodeTime(chat, messageId), [messageId])
+      const latestSelector = useMemo(() => (chat) => latestAssistantMessageId(chat), [])
       const text = useHostHook(props.useChat, selector, '')
       const nodeTime = useHostHook(props.useChat, timeSelector, null)
+      const latestId = useHostHook(props.useChat, latestSelector, '')
+      const running = useHostHook(props.useSession, sessionRunning, false)
       const ownerKey = 'message:' + messageId
+      const autoKey = 'auto:' + messageId
+      const autoRead = configSnapshot.status === 'ready'
+        && enabledFromConfig(configSnapshot.config)
+        && configSnapshot.config.autoRead === true
 
       useEffect(() => {
         void configStore.load(false)
@@ -1805,6 +1878,31 @@ window.__ModuleLoader__.load({
       }, [sessionId, messageId, text, nodeTime])
 
       useEffect(() => () => player.stopIfOwner(ownerKey), [ownerKey])
+      useEffect(() => () => player.stopIfOwner(autoKey), [autoKey])
+
+      // Automatic reading: the newest finished reply speaks once, and only when the
+      // player is idle, so a manual read-aloud or an older reply is never interrupted.
+      useEffect(() => {
+        if (!autoRead) return undefined
+        if (messageId === '' || messageId !== latestId) return undefined
+        if (running) return undefined
+        if (typeof text !== 'string' || text.length === 0) return undefined
+        if (autoReadLog.has(messageId)) return undefined
+        if (playerState.ownerKey !== null) return undefined
+        const config = configSnapshot.config
+        const timer = window.setTimeout(() => {
+          if (autoReadLog.has(messageId)) return
+          if (player.getSnapshot().ownerKey !== null) return
+          autoReadLog.mark(messageId)
+          void player.play({
+            ownerKey: autoKey,
+            text,
+            request: speechRequestFromConfig(config),
+            maxChars: maxCharsFromConfig(config),
+          })
+        }, 400)
+        return () => window.clearTimeout(timer)
+      }, [autoKey, autoRead, configSnapshot, latestId, messageId, playerState.ownerKey, running, text])
 
       if (typeof text !== 'string' || text.length === 0) return null
       if (configSnapshot.status === 'ready' && !enabledFromConfig(configSnapshot.config)) return null
@@ -1812,6 +1910,9 @@ window.__ModuleLoader__.load({
       const active = playerState.ownerKey === ownerKey
         && (playerState.status === LOADING || playerState.status === PLAYING)
       const failed = playerState.ownerKey === ownerKey && playerState.status === ERROR
+      // Automatic playback reports on its own owner key, so the row shows why nothing played.
+      const autoFailed = playerState.ownerKey === autoKey && playerState.status === ERROR
+      const autoBlocked = autoFailed && playerState.code === 'autoplay-blocked'
       const label = active
         ? (playerState.status === LOADING ? t('action.loading') : t('action.stop'))
         : t('action.play')
@@ -1841,6 +1942,9 @@ window.__ModuleLoader__.load({
         ),
         failed && playerState.code
           ? h('span', { className: 'dsh-tts-action-error', role: 'status' }, errorText(playerState.code))
+          : null,
+        autoFailed && playerState.code
+          ? h('span', { className: 'dsh-tts-action-error', role: 'status' }, autoBlocked ? t('action.autoplayBlocked') : errorText(playerState.code))
           : null,
       )
     }
