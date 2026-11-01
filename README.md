@@ -29,7 +29,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/<owner>/dsh-tts-web.git
+git clone https://github.com/liqiangai/dsh-tts-web.git
 ```
 
 然后在 DSH 会话里让 Agent 安装这个本地 bundle：
